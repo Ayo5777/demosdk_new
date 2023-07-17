@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+openbb
+langchain==0.0.234
+
+

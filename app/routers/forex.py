@@ -56,7 +56,8 @@ def forex_spread(
     from_symbol: str = "EUR"
 ):
     spread = openbb.forex.fwd(to_symbol, from_symbol)
-    return spread
+    spread_todict = spread.to_dict(orient="records")
+    return spread_todict
 
 
 @router.get("/quote")

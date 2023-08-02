@@ -20,7 +20,9 @@ def forex_data(
 ):
     data = openbb.forex.load( from_symbol, to_symbol,resolution, interval.value, start_date, end_date, source, verbose)
 #    data['time'] = data.index.tolist()
+    data = data.reset_index()
     data_todict = data.to_dict(orient="records")
+    #return data
     """
     data_results = []
     for data_dict in data_todict:
@@ -32,19 +34,19 @@ def forex_data(
     """
     return data_todict
 
+
+
 @router.get("/detailedfxdata")
 def detailed_fx_data(
-    #to_symbol: str,
-    #from_symbol:str,
+   
 ):
+    
+    openbb.keys.polygon(key = 'aMNkckY1uBG_BavEjdJjAEyH2nq3LLq2', persist = True)
 
-    fwd_usdeur = openbb.forex.fwd('EUR', 'USD')
-    #fwd_jpyeur = openbb.forex.oanda.fwd(to_symbol, from_symbol)
-    #fwd_pairs = fwd_jpyeur.join(fwd_usdeur, on = ['Expiration'], lsuffix = ' JPY/EUR', rsuffix=' USD/EUR')
-    #fwd_pairs_to_dict =  fwd_pairs.to_dict()
-    #return fwd_pairs_to_dict
-    fwd_jpyeur = openbb.forex.oanda.fwd('JPY', 'EUR')
-    fwd_pairs = fwd_jpyeur.join(fwd_usdeur, on = ['Expiration'], lsuffix = ' JPY/EUR', rsuffix=' USD/EUR')
+    fwd_pairs = openbb.forex.load('jpy','usd',source='Polygon')
+    
+    data_todict = fwd_pairs.to_dict(orient="records")
+    #return data_todict
     return fwd_pairs
 
 

@@ -15,7 +15,7 @@ def get_news(
     tag: Optional[AnyStr] = "",
     source: Optional[AnyStr] = ""
 ):
-    news = openbb.root.news(term, sources, tag, source)
+    news = openbb.news(term, sources, tag, source)
     news_todict = news.to_dict(orient = "records")
     return news_todict
 

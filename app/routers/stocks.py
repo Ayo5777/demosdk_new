@@ -42,7 +42,16 @@ def stock_spread(
     df1_todict = df1.to_dict(orient = "records")
     df2_todict = df2.to_dict(orient = "records")
     return df1_todict, df2_todict
-    
+
+
+
+@router.get("/test-stock")
+def test(symbol: str):
+   dataset = openbb.stocks.ins.act(symbol)
+   return dataset
+
+#openbb.stocks.load(symbol: str, start_date: Union[datetime.datetime, str, NoneType] = None, interval: int = 1440, end_date: Union[datetime.datetime, str, NoneType] = None, prepost: bool = False, source: str = "YahooFinance", weekly: bool = False, monthly: bool = False, verbose: bool = True)
+  
 
 @router.get("/yieldanalysis/", response_model=Union[str, StockYieldResult])
 def stock_yield(symbol: str):

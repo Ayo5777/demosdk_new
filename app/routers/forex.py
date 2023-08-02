@@ -41,7 +41,7 @@ def detailed_fx_data(
    
 ):
     
-    openbb.keys.polygon(key = 'aMNkckY1uBG_BavEjdJjAEyH2nq3LLq2', persist = True)
+    
 
     fwd_pairs = openbb.forex.load('jpy','usd',source='Polygon')
     
@@ -58,7 +58,9 @@ def forex_spread(
     from_symbol: str = "EUR"
 ):
     spread = openbb.forex.fwd(to_symbol, from_symbol)
+    spread = spread.reset_index()
     spread_todict = spread.to_dict(orient="records")
+
     return spread_todict
 
 
@@ -68,6 +70,25 @@ def forex_quote(
     source: str = "YahooFinance"
 ):
     quote = openbb.forex.quote(symbol, source)
+    quote_todict = quote.to_dict()
+    return quote_todict
+
+
+@router.get("/display_EurUsd_quote")
+def forex_quote(
+ 
+   
+):
+    quote = openbb.forex.quote('EURUSD', source="YahooFinance")
+    quote_todict = quote.to_dict()
+    return quote_todict
+
+@router.get("/display_UsdJpy_quote")
+def forex_quote(
+ 
+   
+):
+    quote = openbb.forex.quote('USDJPY', source="YahooFinance")
     quote_todict = quote.to_dict()
     return quote_todict
 

@@ -1,8 +1,9 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from app.routers import stocks
-from app.routers import news
-from app.routers import forex
+from app.routers import stocks, news, forex, portfolio
+
+import asyncio
+
 
 app = FastAPI()
 
@@ -16,4 +17,5 @@ app.add_middleware(
 app.include_router(news.router)
 app.include_router(stocks.router)
 app.include_router(forex.router)
+app.include_router(portfolio.router)
 

@@ -111,7 +111,7 @@ class PortfolioData(BaseModel):
 @router.post("/get-portfolio")
 async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
     try:
-        openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
+        
         Tickers = [portfolio.Ticker for portfolio in portfolios.values()]
         quote = openbb.stocks.quote(Tickers)
         ticker_gain_loss_percentages = {}

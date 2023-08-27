@@ -25,7 +25,7 @@ async def download_report(filename: str):
 
 
 
-@router.post("/report")
+@router.post("/summary")
 def portfolio_calculation(base64data: str):
     decoded_data = base64.b64decode(base64data)
     excel_data = pd.read_excel(pd.ExcelFile(decoded_data))
@@ -55,47 +55,16 @@ def portfolio_calculation(base64data: str):
 # Provide a download link in the response
     download_link = f"/download/{output_file}"
 
-    return {"message": "Report generated successfully",
+    return {
+        "message": "Report generated successfully",
         "computed_result": computed_result,
         "excel_file_path": output_file,
-        "download_link": download_link}
+        "download_link": download_link
+        }
     
 
 
-def generate_portfolio_excel(payload, output_filepath):
-    # Create an empty DataFrame to hold the investment data
-    investment_data = pd.DataFrame(columns=['Ticker', 'Symbol', 'Date Purchase', 'Amount Invested', 'Sector', 'Country', 'Industry', 'Asset Class'])
 
-    # Iterate through the payload and populate the investment data
-    for ticker, info in payload.items():
-        investment_data = investment_data.append({
-            'Ticker': ticker,
-            'Symbol': info['symbol'],
-            'Date Purchase': info['date_purchase'],
-            'Amount Invested': info['amount_invested'],
-            'Sector': info['sector'],
-            'Country': info['country'],
-            'Industry': info['industry'],  # Add the industry field
-            'Asset Class': info['asset_class']
-        }, ignore_index=True)
-
-    # Calculate sums and percentages for each category
-    category_columns = ['Sector', 'Country', 'Industry', 'Asset Class']  # Include 'Industry'
-    category_names = ['sector', 'country', 'industry', 'asset_class']  # Include 'industry'
-    output_data = {}
-
-    for category_col, category_name in zip(category_columns, category_names):
-        category_sum = investment_data.groupby(category_col)['Amount Invested'].sum()
-        category_data_set = pd.DataFrame(category_sum)
-        category_data_set['percentage %'] = (category_data_set['Amount Invested'] / category_data_set['Amount Invested'].sum()) * 100
-
-        output_data[category_name] = category_data_set
-
-    # Concatenate all categories into a single data frame
-    combined_data = pd.concat(output_data.values(), keys=output_data.keys(), names=['Category'])
-
-    # Save the combined data to an Excel file
-    combined_data.to_excel(output_filepath, index=True)
 
 class PortfolioData(BaseModel):
     Ticker: str
@@ -111,20 +80,46 @@ class PortfolioData(BaseModel):
 @router.post("/get-portfolio")
 async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
     try:
-        
+        openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
         Tickers = [portfolio.Ticker for portfolio in portfolios.values()]
         quote = openbb.stocks.quote(Tickers)
         ticker_gain_loss_percentages = {}
         for ticker, portfolio in portfolios.items():
             purchased_price = portfolio.purchase_price
-            quoted_price = quote.loc[ticker, 'price']
+            quoted_price = quote.iloc[1, 0] 
             percentage_difference = (((quoted_price-purchased_price)/purchased_price) * 100)
-            overall_gain_loss_percentage[ticker] = percentage_difference
- # Calculate the overall gain/loss percentage
+            
+            ticker_gain_loss_percentages[ticker] = percentage_difference
+        # Calculate the overall gain/loss percentage
         overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
-        
+        ticker_percentage_list = [{"Ticker": portfolio.Ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
         # Respond with the calculated gain/loss percentages
-        return {"message": "success", "ticker_gain_loss_percentages": ticker_gain_loss_percentages, "overall_gain_loss_percentage": overall_gain_loss_percentage}
+        # Calculate category data
+        category_columns = ['sector', 'country', 'industry', 'asset_class']
+        category_names = ['Sector', 'Country', 'Industry', 'Asset Class']
+        category_data = {}
+
+        for category_col, category_name in zip(category_columns, category_names):
+            category_sum = {}
+            for portfolio in portfolios.values():
+                category_value = getattr(portfolio, category_col)
+                category_sum[category_value] = category_sum.get(category_value, 0) + portfolio.amount_invested
+            category_data_set = pd.DataFrame({'Current Invested Amount': category_sum.values()}, index=category_sum.keys())
+            category_data_set['percentage %'] = (category_data_set['Current Invested Amount'] / category_data_set['Current Invested Amount'].sum()) * 100
+            category_data[category_name] = category_data_set
+
+        computed_result = category_data
+
+
+
+
+
+        return {
+          
+                "ticker_percentage_list": ticker_percentage_list, 
+                "overall_gain_loss_percentage": overall_gain_loss_percentage,
+                "computed_result": computed_result
+                }
         
        
         # Respond with a success message

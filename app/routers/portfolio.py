@@ -51,15 +51,17 @@ def portfolio_calculation(base64data: str):
     # Save the combined data to an Excel file
     combined_data.to_excel(output_file, index=True)
     computed_result = output_data
-  
-# Provide a download link in the response
-    download_link = f"/download/{output_file}"
+    
+    with open(output_file, "rb") as excel_file:
+        excel_data_bytes = excel_file.read()
+        excel_base64 = base64.b64encode(excel_data_bytes).decode()
+
+    computed_result = output_data
 
     return {
         "message": "Report generated successfully",
         "computed_result": computed_result,
-        "excel_file_path": output_file,
-        "download_link": download_link
+        "encoded_excel_file": excel_base64,
         }
     
 
@@ -80,7 +82,7 @@ class PortfolioData(BaseModel):
 @router.post("/get-portfolio")
 async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
     try:
-        openbb.login(token='eyjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
+        openbb.login(token='SIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
         Tickers = [portfolio.Ticker for portfolio in portfolios.values()]
         quote = openbb.stocks.quote(Tickers)
         ticker_gain_loss_percentages = {}
@@ -92,7 +94,8 @@ async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
             ticker_gain_loss_percentages[ticker] = percentage_difference
         # Calculate the overall gain/loss percentage
         overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
-        ticker_percentage_list = [{"Ticker": portfolio.Ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+        ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+
         # Respond with the calculated gain/loss percentages
         # Calculate category data
         category_columns = ['sector', 'country', 'industry', 'asset_class']
@@ -114,15 +117,15 @@ async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
 
 
 
+
         return {
-          
                 "ticker_percentage_list": ticker_percentage_list, 
                 "overall_gain_loss_percentage": overall_gain_loss_percentage,
                 "computed_result": computed_result
                 }
-        
+      
        
-        # Respond with a success message
+        
         #return {"message": "success", "data": quote}
     except Exception as e:
         # Handle any exceptions and return an error response

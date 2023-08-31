@@ -1,7 +1,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from app.routers import stocks, news, forex, portfolio
-
+from app.db.db_config import SQLALCHEMY_DATABASE_URL
 import asyncio
 
 

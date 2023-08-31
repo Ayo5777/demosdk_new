@@ -10,10 +10,9 @@ router = APIRouter(tags=["stocks"], prefix="/stocks")
 
 @router.get("/{symbol}")
 def stock_info(symbol: str):
-    info = openbb.stocks.options.info(symbol)
-    # info_todict = info.to_dict()
-    # return info_todict
-    return info
+    return (openbb.stocks.options.info(symbol))
+    
+    
 
 @router.get("/data/{symbol}", response_model=list[StockDataResult])
 def stocks_data(

@@ -22,18 +22,19 @@ async def download_report(filename: str):
     return FileResponse(file_path, filename=filename)
 
 
+class Inputdata(BaseModel):
+    base64data : str
 
 
-
-@router.post("/summary")
-def portfolio_calculation(base64data: str):
+@router.post("/summary/")
+def portfolio_calculation(encoded_data: Inputdata):
+    base64data = encoded_data.base64data
     decoded_data = base64.b64decode(base64data)
     excel_data = pd.read_excel(pd.ExcelFile(decoded_data))
-    #excel_data['Current Invested Amount'] = excel_data['Current Invested Amount'].str.replace('[\$,]', '', regex=True).astype(int)
 
     output_file = generate_unique_filename()  
     
-    # Calculate sums and percentages for each category
+    # Calculate sums and percentages for each categoryd
     category_columns = ['Sector', 'Country', 'Industry', 'Asset Class']
     category_names = ['sector', 'country', 'industry', 'asset_class']
     output_data = {}
@@ -82,7 +83,7 @@ class PortfolioData(BaseModel):
 @router.post("/get-portfolio")
 async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
     try:
-        openbb.login(token='joiWDI3aGQxR2l6bW9aWnBXSUZJNmrc0Y1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
+        openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
         Tickers = [portfolio.Ticker for portfolio in portfolios.values()]
         quote = openbb.stocks.quote(Tickers)
         ticker_gain_loss_percentages = {}

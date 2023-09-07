@@ -33,8 +33,40 @@ def portfolio_calculation(encoded_data: Inputdata):
     excel_data = pd.read_excel(pd.ExcelFile(decoded_data))
 
     output_file = generate_unique_filename()  
-    
-    # Calculate sums and percentages for each categoryd
+    tickers = excel_data['Ticker'].tolist()
+    purchase_prices = excel_data['Purchase Price'].tolist()
+    portfolio_data = dict(zip(tickers, purchase_prices))
+    valid_tickers = [ticker for ticker in tickers if isinstance(ticker, str) and ticker.lower() != 'nan']
+
+    # Log in and fetch quotes for valid tickers
+    openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')  # Replace with your OpenBB token
+    quote = openbb.stocks.quote(valid_tickers)
+
+    # Initialize an empty dictionary to store quoted prices for tickers
+    ticker_quoted_prices = {}
+
+    ticker_gain_loss_percentages ={}
+    for ticker in valid_tickers:
+        try:
+            purchased_price = portfolio_data[ticker]
+            price_value = quote.loc['Price', ticker]
+            #ticker_quoted_prices[ticker] = price_value
+            percentage_difference = (((price_value-purchased_price)/purchased_price) * 100)
+            ticker_gain_loss_percentages[ticker] = percentage_difference
+
+        except KeyError:
+            # Handle the case where the ticker is not found in the DataFrame
+            ticker_quoted_prices[ticker] = None 
+
+    overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
+    ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+             
+
+    # Initialize an empty dictionary to store gain/loss percentages for tickers
+    ticker_gain_loss_percentages = {}
+
+
+    # Calculate sums and percentages for each category
     category_columns = ['Sector', 'Country', 'Industry', 'Asset Class']
     category_names = ['sector', 'country', 'industry', 'asset_class']
     output_data = {}
@@ -51,8 +83,8 @@ def portfolio_calculation(encoded_data: Inputdata):
     
     # Save the combined data to an Excel file
     combined_data.to_excel(output_file, index=True)
-    computed_result = output_data
     
+    # Read the Excel file and encode it as base64
     with open(output_file, "rb") as excel_file:
         excel_data_bytes = excel_file.read()
         excel_base64 = base64.b64encode(excel_data_bytes).decode()
@@ -61,12 +93,12 @@ def portfolio_calculation(encoded_data: Inputdata):
 
     return {
         "message": "Report generated successfully",
+        "ticker_percentage_list": ticker_percentage_list,
+        "overall_gain_loss_percentage": overall_gain_loss_percentage,
         "computed_result": computed_result,
+        
         "encoded_excel_file": excel_base64,
-        }
-    
-
-
+    }
 
 
 class PortfolioData(BaseModel):
@@ -84,8 +116,8 @@ class PortfolioData(BaseModel):
 async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
     try:
         openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
-        Tickers = [portfolio.Ticker for portfolio in portfolios.values()]
-        quote = openbb.stocks.quote(Tickers)
+        tickers = [portfolio.Ticker for portfolio in portfolios.values()]
+        quote = openbb.stocks.quote(tickers)
         ticker_gain_loss_percentages = {}
         for ticker, portfolio in portfolios.items():
             purchased_price = portfolio.purchase_price
@@ -93,6 +125,7 @@ async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
             percentage_difference = (((quoted_price-purchased_price)/purchased_price) * 100)
             
             ticker_gain_loss_percentages[ticker] = percentage_difference
+
         # Calculate the overall gain/loss percentage
         overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
         ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]

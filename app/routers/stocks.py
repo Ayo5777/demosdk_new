@@ -9,8 +9,10 @@ router = APIRouter(tags=["stocks"], prefix="/stocks")
 
 
 @router.get("/{symbol}")
-def stock_info(symbol: str):
-    return (openbb.stocks.options.info(symbol))
+def stock_info(symbol):
+    openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
+    quote_data = openbb.stocks.quote(symbol)
+    return quote_data.to_dict()
     
     
 

@@ -1,13 +1,21 @@
 import pandas as pd
 from fastapi import APIRouter
 from openbb_terminal.sdk import openbb
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from datetime import datetime
 from typing import List
+import json
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse,FileResponse
+from fastapi.responses import FileResponse
+from fastapi_sqlalchemy import DBSessionMiddleware, db
+from db.schema import  User as SchemaUser
+from db.schema import  Portfolio as SchemaPortfolio
+from db.schema import  PortfolioEvaluation as SchemaPortfolioEvaluation
+from db.models import User as ModelUser
+from db.models import Portfolio as ModelPortfolio
+from db.models import PortfolioEvaluation as ModelPortfolioEvaluation
 import base64
 
 router = APIRouter(tags=["portfolio"], prefix="/portfolio")
@@ -26,8 +34,76 @@ class Inputdata(BaseModel):
     base64data : str
 
 
+@router.post('/User/', response_model=SchemaUser)
+async def add_user(user : SchemaUser):
+    db_user = ModelUser(username=user.username)
+    db.session.add(db_user)
+    db.session.commit()
+    
+    return db_user
+
+
+
+
+
+
+@router.get('/User/{user_id}' )
+def get_user(user_id: int):
+    db_user = db.session.query(ModelUser).filter(ModelUser.id==user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404,detail=f"User with ID {user_id} not found")
+    return db_user
+
+#@router.post('/add_portfolio/')
+def add_portfolio(
+        user_id: int,
+        ticker_percentage_list: list[Dict],
+        overall_gain_loss_percentage : float
+        ):
+    
+    try:     
+        evaluation = ModelPortfolioEvaluation(portfolio_overall_gain_loss=overall_gain_loss_percentage)
+    
+        db.session.add(evaluation)
+        db.session.commit()
+        for entry in ticker_percentage_list:
+            ticker = entry["Ticker"]
+            gain_loss = entry["Gain_Loss_Percentage"]
+
+            portfolio = ModelPortfolio(
+                ticker=ticker,
+                percentage=gain_loss,
+                user_id=user_id,
+                evaluation_id=evaluation.id  # Assign the evaluation ID
+            )
+            db.session.add(portfolio)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+
+        raise e
+    finally:
+        db.session.close()
+    return {"message":"successfully added portfolio"}
+
+@router.get("/get_portfolio/{user_id}")
+async def get_portfolio(user_id:int):
+    try:
+        query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).all()
+        eval_id_query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).first()
+
+        evaluation_id = eval_id_query.evaluation_id
+        overall_gain_loss_query = db.session.query(ModelPortfolioEvaluation).filter(ModelPortfolioEvaluation.id==evaluation_id).first()
+        query_result = [{"ticker":item.ticker, "percentage":item.percentage} for item in query]
+        return{"eval_query":eval_id_query, "query_result":query_result, "evaluation_id":evaluation_id, "ov_gain":overall_gain_loss_query}
+    except Exception as e:
+        return HTTPException(status_code=500, detail=str(e))
+
+
+
+
 @router.post("/summary/")
-def portfolio_calculation(encoded_data: Inputdata):
+def portfolio_calculation(encoded_data: Inputdata, user_id: int):
     base64data = encoded_data.base64data
     decoded_data = base64.b64decode(base64data)
     excel_data = pd.read_excel(pd.ExcelFile(decoded_data))
@@ -50,7 +126,6 @@ def portfolio_calculation(encoded_data: Inputdata):
         try:
             purchased_price = portfolio_data[ticker]
             price_value = quote.loc['Price', ticker]
-            #ticker_quoted_prices[ticker] = price_value
             percentage_difference = (((price_value-purchased_price)/purchased_price) * 100)
             ticker_gain_loss_percentages[ticker] = percentage_difference
 
@@ -60,8 +135,10 @@ def portfolio_calculation(encoded_data: Inputdata):
 
     overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
     ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
-             
+    print(ticker_percentage_list)
+    print(overall_gain_loss_percentage)
 
+    add_portfolio(user_id,ticker_percentage_list, overall_gain_loss_percentage)
     # Initialize an empty dictionary to store gain/loss percentages for tickers
     ticker_gain_loss_percentages = {}
 
@@ -112,8 +189,8 @@ class PortfolioData(BaseModel):
     asset_class: Optional[str]
 
 
-@router.post("/get-portfolio")
-async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
+@router.post("/eval_portfolio")
+async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioData]):
     try:
         openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
         tickers = [portfolio.Ticker for portfolio in portfolios.values()]
@@ -128,8 +205,15 @@ async def generate_portfolio_api(portfolios: Dict[str, PortfolioData]):
 
         # Calculate the overall gain/loss percentage
         overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
+        print(overall_gain_loss_percentage) 
         ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+        #ticker_percentage_json = json.dumps(ticker_percentage_list)
+        debug = add_portfolio(user_id,ticker_percentage_list, overall_gain_loss_percentage)
 
+        print(ticker_percentage_list)
+        print(debug)
+        print(overall_gain_loss_percentage)      
+   
         # Respond with the calculated gain/loss percentages
         # Calculate category data
         category_columns = ['sector', 'country', 'industry', 'asset_class']

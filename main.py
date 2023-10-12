@@ -12,7 +12,7 @@ load_dotenv('.env')
 
 
 app = FastAPI()
-app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URI'])
+app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URL'])
 
 app.add_middleware(
     CORSMiddleware,

@@ -40,7 +40,9 @@ async def add_user(user : SchemaUser):
     db.session.add(db_user)
     db.session.commit()
     
-    return db_user
+    return{"success message":"New user created",
+        "db_user":db_user
+        }
 
 
 
@@ -89,18 +91,60 @@ def add_portfolio(
 @router.get("/get_portfolio/{user_id}")
 async def get_portfolio(user_id:int):
     try:
-        query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).all()
+        
         eval_id_query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).first()
-
         evaluation_id = eval_id_query.evaluation_id
+        query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id, ModelPortfolio.evaluation_id == evaluation_id).all()
+
+        
         overall_gain_loss_query = db.session.query(ModelPortfolioEvaluation).filter(ModelPortfolioEvaluation.id==evaluation_id).first()
         query_result = [{"ticker":item.ticker, "percentage":item.percentage} for item in query]
-        return{"eval_query":eval_id_query, "query_result":query_result, "evaluation_id":evaluation_id, "ov_gain":overall_gain_loss_query}
+        return{"eval_query":eval_id_query, "query_result":query_result,  "ov_gain":overall_gain_loss_query}
     except Exception as e:
         return HTTPException(status_code=500, detail=str(e))
 
+import base64
+import pandas as pd
+from io import BytesIO
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
+app = FastAPI()
 
+class ExcelRequest(BaseModel):
+    base64data: str
+
+@app.post('/download_excel')
+async def download_excel(request: ExcelRequest):
+    try:
+        # Decode the Base64 data from the request
+        base64_data = request.base64data.encode('utf-8')
+        decoded_data = base64.b64decode(base64_data)
+
+        # Load the decoded data into a DataFrame
+        excel_data = pd.read_excel(BytesIO(decoded_data))
+
+        # Create a downloadable Excel file
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            excel_data.to_excel(writer, index=False, sheet_name='Sheet1')
+
+        output.seek(0)
+
+        # Prepare the response for download
+        content = output.read()
+        response = {
+            "content": content,
+            "headers": {
+                "Content-Disposition": 'attachment; filename=downloaded_excel.xlsx',
+                "Content-Type": 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            }
+        }
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/summary/")
 def portfolio_calculation(encoded_data: Inputdata, user_id: int):
@@ -186,7 +230,6 @@ class PortfolioData(BaseModel):
     sector: Optional[str]
     country: Optional[str]
     industry: Optional[str]
-    asset_class: Optional[str]
 
 
 @router.post("/eval_portfolio")

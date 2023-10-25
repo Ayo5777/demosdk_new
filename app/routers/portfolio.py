@@ -226,7 +226,7 @@ class PortfolioData(BaseModel):
     Ticker: str
     purchase_price: float
     amount_invested: float
-    asset_class_: Optional[str]
+    asset_class: Optional[str]
     sector: Optional[str]
     country: Optional[str]
     industry: Optional[str]
@@ -235,7 +235,9 @@ class PortfolioData(BaseModel):
 @router.post("/eval_portfolio")
 async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioData]):
     try:
-        openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')
+        openbb.login(token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiSXZoN2REM25Sd1RxcG00TnVTNnZGN0s5WnVEbWtKZDA2RXY3azZsNiIsImV4cCI6MTcyOTE4MzYxMH0.F5PwTuGDonbdTkj44H50Hov6nyLOk5PEY3p07x5E8UA")
+
+        print("login successful")
         tickers = [portfolio.Ticker for portfolio in portfolios.values()]
         quote = openbb.stocks.quote(tickers)
         ticker_gain_loss_percentages = {}

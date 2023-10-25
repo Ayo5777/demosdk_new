@@ -37,3 +37,7 @@ class CryptoSpreadResult(BaseModel):
 
 class CryptoYieldResult(BaseModel):
     annualizedReturn: dict
+
+from abc import ABC, abstractmethod
+class test():
+    @abstractmethod

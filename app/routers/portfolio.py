@@ -92,29 +92,32 @@ def add_portfolio(
 async def get_portfolio(user_id:int):
     try:
         
-        eval_id_query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).first()
-        evaluation_id = eval_id_query.evaluation_id
+        portfolio_objects = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id).all()
+        
+        latest_portfolio_object = max(portfolio_objects, key=lambda x: x.id)
+    
+        
+        evaluation_id = latest_portfolio_object.evaluation_id
         query = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id==user_id, ModelPortfolio.evaluation_id == evaluation_id).all()
 
         
         overall_gain_loss_query = db.session.query(ModelPortfolioEvaluation).filter(ModelPortfolioEvaluation.id==evaluation_id).first()
         query_result = [{"ticker":item.ticker, "percentage":item.percentage} for item in query]
-        return{"eval_query":eval_id_query, "query_result":query_result,  "ov_gain":overall_gain_loss_query}
+        return{"eval_id":evaluation_id, "query_result":query_result,  "ov_gain":overall_gain_loss_query}
     except Exception as e:
         return HTTPException(status_code=500, detail=str(e))
 
 import base64
 import pandas as pd
 from io import BytesIO
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
-app = FastAPI()
+
+
 
 class ExcelRequest(BaseModel):
     base64data: str
 
-@app.post('/download_excel')
+@router.post('/download_excel')
 async def download_excel(request: ExcelRequest):
     try:
         # Decode the Base64 data from the request

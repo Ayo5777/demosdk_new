@@ -19,6 +19,7 @@ class Portfolio(Base):
     id = Column(Integer, primary_key=True)
     ticker = Column(String)
     percentage = Column(Float)
+    purchase_price = Column(Float)
     user_id = Column(ForeignKey('user.id'))
     user = relationship('User')
     evaluation_id = Column(ForeignKey('portfolio_evaluation.id'))

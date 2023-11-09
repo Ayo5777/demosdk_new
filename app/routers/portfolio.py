@@ -7,6 +7,9 @@ from fastapi import FastAPI, HTTPException
 from datetime import datetime
 from typing import List
 import json
+import base64
+import pandas as pd
+from io import BytesIO
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from fastapi_sqlalchemy import DBSessionMiddleware, db
@@ -40,26 +43,25 @@ async def add_user(user : SchemaUser):
     db.session.add(db_user)
     db.session.commit()
     
-    return{"success message":"New user created",
-        "db_user":db_user
-        }
-
-
-
-
-
-
-@router.get('/User/{user_id}' )
-def get_user(user_id: int):
-    db_user = db.session.query(ModelUser).filter(ModelUser.id==user_id).first()
-    if db_user is None:
-        raise HTTPException(status_code=404,detail=f"User with ID {user_id} not found")
     return db_user
+
+
+
+
+def validate_user(user_id :int):
+    db_user = db.session.query(ModelUser).filter(ModelUser.id==user_id).first()
+    if db_user:
+        return True
+    else:
+         return False
+
+
 
 #@router.post('/add_portfolio/')
 def add_portfolio(
         user_id: int,
         ticker_percentage_list: list[Dict],
+        portfolio_data: dict,
         overall_gain_loss_percentage : float
         ):
     
@@ -68,14 +70,17 @@ def add_portfolio(
     
         db.session.add(evaluation)
         db.session.commit()
+        
         for entry in ticker_percentage_list:
             ticker = entry["Ticker"]
             gain_loss = entry["Gain_Loss_Percentage"]
+            purchase_price = portfolio_data.get(ticker, 0.0)
 
             portfolio = ModelPortfolio(
                 ticker=ticker,
                 percentage=gain_loss,
                 user_id=user_id,
+                purchase_price =purchase_price,
                 evaluation_id=evaluation.id  # Assign the evaluation ID
             )
             db.session.add(portfolio)
@@ -87,6 +92,17 @@ def add_portfolio(
     finally:
         db.session.close()
     return {"message":"successfully added portfolio"}
+
+
+@router.get('/User/{user_id}' )
+def get_user(user_id: int):
+    db_user = db.session.query(ModelUser).filter(ModelUser.id==user_id).first()
+
+    if db_user is None:
+        raise HTTPException(status_code=404,detail=f"User with ID {user_id} not found")
+    return db_user
+
+
 
 @router.get("/get_portfolio/{user_id}")
 async def get_portfolio(user_id:int):
@@ -107,9 +123,7 @@ async def get_portfolio(user_id:int):
     except Exception as e:
         return HTTPException(status_code=500, detail=str(e))
 
-import base64
-import pandas as pd
-from io import BytesIO
+
 
 
 
@@ -153,7 +167,8 @@ async def download_excel(request: ExcelRequest):
 def portfolio_calculation(encoded_data: Inputdata, user_id: int):
     base64data = encoded_data.base64data
     decoded_data = base64.b64decode(base64data)
-    excel_data = pd.read_excel(pd.ExcelFile(decoded_data))
+    excel_data = pd.read_excel(pd.ExcelFile(decoded_data))    
+    
 
     output_file = generate_unique_filename()  
     tickers = excel_data['Ticker'].tolist()
@@ -162,8 +177,9 @@ def portfolio_calculation(encoded_data: Inputdata, user_id: int):
     valid_tickers = [ticker for ticker in tickers if isinstance(ticker, str) and ticker.lower() != 'nan']
 
     # Log in and fetch quotes for valid tickers
-    openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiWDI3aGQxR2l6bW9aWnBXSUZJNmRqMHZrc0dTYXhOY1R3T3Y2THpUYSIsImV4cCI6MTY5NjEwMjYzNn0.JgMrZnz7w7tHKfIO-PUMIUX-bBwKL2LD4-6t2sjYTA8')  # Replace with your OpenBB token
+    openbb.login(token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiVXJuT2wxd09oZHNsT2htNXJ1dVpwR3lyNEV3VWhuQkppSmdqYjhXViIsImV4cCI6MTcyOTE3NTA1MX0.g2p3pNZeWWZbthBWgxVbP3TB6gvtkIvEDIFf863H7qc')  # Replace with your OpenBB token
     quote = openbb.stocks.quote(valid_tickers)
+    print(quote)
 
     # Initialize an empty dictionary to store quoted prices for tickers
     ticker_quoted_prices = {}
@@ -182,10 +198,11 @@ def portfolio_calculation(encoded_data: Inputdata, user_id: int):
 
     overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
     ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+    
     print(ticker_percentage_list)
     print(overall_gain_loss_percentage)
 
-    add_portfolio(user_id,ticker_percentage_list, overall_gain_loss_percentage)
+    add_portfolio(user_id,ticker_percentage_list, portfolio_data, overall_gain_loss_percentage)
     # Initialize an empty dictionary to store gain/loss percentages for tickers
     ticker_gain_loss_percentages = {}
 
@@ -238,7 +255,7 @@ class PortfolioData(BaseModel):
 @router.post("/eval_portfolio")
 async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioData]):
     try:
-        openbb.login(token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiSXZoN2REM25Sd1RxcG00TnVTNnZGN0s5WnVEbWtKZDA2RXY3azZsNiIsImV4cCI6MTcyOTE4MzYxMH0.F5PwTuGDonbdTkj44H50Hov6nyLOk5PEY3p07x5E8UA")
+        openbb.login(token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiVXJuT2wxd09oZHNsT2htNXJ1dVpwR3lyNEV3VWhuQkppSmdqYjhXViIsImV4cCI6MTcyOTE3NTA1MX0.g2p3pNZeWWZbthBWgxVbP3TB6gvtkIvEDIFf863H7qc")
 
         print("login successful")
         tickers = [portfolio.Ticker for portfolio in portfolios.values()]
@@ -256,7 +273,7 @@ async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioDa
         print(overall_gain_loss_percentage) 
         ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
         #ticker_percentage_json = json.dumps(ticker_percentage_list)
-        debug = add_portfolio(user_id,ticker_percentage_list, overall_gain_loss_percentage)
+        debug = add_portfolio(user_id,ticker_percentage_list, purchased_price, overall_gain_loss_percentage)
 
         print(ticker_percentage_list)
         print(debug)
@@ -298,3 +315,50 @@ async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioDa
         return HTTPException(status_code=500, detail=str(e))
 
 
+@router.get('refresh_portfolio/{user_id}')
+def get_latest_portfolio(user_id: int):
+    try: 
+        if validate_user(user_id) == True:
+            user_portfolio_objects = db.session.query(ModelPortfolio).filter(ModelPortfolio.user_id == user_id).all()
+            latest_portfolio_object = max(user_portfolio_objects, key=lambda x: x.id)
+            evaluation_id = latest_portfolio_object.evaluation_id
+
+            # Extract tickers and purchase prices
+            ticker_purchase_prices = {}
+            for portfolio in user_portfolio_objects:
+                if portfolio.evaluation_id == evaluation_id:
+                    ticker_purchase_prices[portfolio.ticker] = portfolio.purchase_price
+
+            # Filter valid tickers
+            valid_tickers = [ticker for ticker in ticker_purchase_prices if isinstance(ticker, str) and ticker.lower() != 'nan']
+
+            # Log in and fetch quotes for valid tickers
+            openbb.login(token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiVXJuT2wxd09oZHNsT2htNXJ1dVpwR3lyNEV3VWhuQkppSmdqYjhXViIsImV4cCI6MTcyOTE3NTA1MX0.g2p3pNZeWWZbthBWgxVbP3TB6gvtkIvEDIFf863H7qc")  # Replace with your OpenBB token
+            quote = openbb.stocks.quote(valid_tickers)
+            print(quote)
+
+            # Initialize an empty dictionary to store quoted prices for tickers
+            ticker_quoted_prices = {}
+
+            ticker_gain_loss_percentages = {}
+            for ticker in valid_tickers:
+                try:
+                    purchased_price = ticker_purchase_prices[ticker]
+                    price_value = quote.loc['Price', ticker]
+                    percentage_difference = (((price_value - purchased_price) / purchased_price) * 100)
+                    ticker_gain_loss_percentages[ticker] = percentage_difference
+
+                except KeyError:
+                    # Handle the case where the ticker is not found in the DataFrame
+                    ticker_quoted_prices[ticker] = None
+
+            overall_gain_loss_percentage = sum(ticker_gain_loss_percentages.values()) / len(ticker_gain_loss_percentages)
+            ticker_percentage_list = [{"Ticker": ticker, "Gain_Loss_Percentage": gain_loss} for ticker, gain_loss in ticker_gain_loss_percentages.items()]
+
+            return {"ticker_percentage_list":ticker_percentage_list, "overall_gain_loss_percentage":overall_gain_loss_percentage}
+
+        else:
+            return 'invalid user'
+
+    except Exception as e:
+        return HTTPException(status_code=500, detail=str(e))

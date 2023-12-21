@@ -20,6 +20,7 @@ from db.models import User as ModelUser
 from db.models import Portfolio as ModelPortfolio
 from db.models import PortfolioEvaluation as ModelPortfolioEvaluation
 import base64
+import requests
 
 router = APIRouter(tags=["portfolio"], prefix="/portfolio")
 
@@ -362,3 +363,33 @@ def get_latest_portfolio(user_id: int):
 
     except Exception as e:
         return HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+        
+@router.post("/get-local-market-data /")
+def get_local_market_data(symbols: List):
+
+    url = "https://marketdataapiv3.ngxgroup.com/v3/api/quote/stockquotes.json"
+    payload = {
+        's' :symbols,
+        '_t': "2cd63ca313bc456fb3f43d93bf7b2eff"      
+               }
+    headers = {}
+    response = requests.get(url, headers=headers, params= payload)
+    return json.loads(response.text)
+
+@router.post("/get-last-price/")
+def compute_local_data(symbols: List):
+
+    try:    
+        local_market_data = get_local_market_data(symbols)
+        
+        last_prices = [{item["Symbol"]: item["Last"]} for item in local_market_data] #[{symbol: item["Last"]} for symbol, item in zip(symbols, local_market_data)]
+        return last_prices
+    except Exception as e:
+        return f"Something went wrong : {e}"
+
+

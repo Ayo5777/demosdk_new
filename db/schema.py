@@ -1,4 +1,8 @@
 from pydantic import BaseModel
+from typing import Union
+from pydantic import BaseModel, validator
+import datetime
+from sqlalchemy import  BigInteger
 
 
 
@@ -24,3 +28,9 @@ class PortfolioEvaluation(BaseModel):
     
     class Config:
         orm_mode = True
+
+
+
+
+
+

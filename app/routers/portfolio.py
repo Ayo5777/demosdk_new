@@ -1,12 +1,14 @@
 import pandas as pd
 from fastapi import APIRouter
 from openbb_terminal.sdk import openbb
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Any
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from typing import List
 import json
+
 import base64
 import pandas as pd
 from io import BytesIO
@@ -16,9 +18,12 @@ from fastapi_sqlalchemy import DBSessionMiddleware, db
 from db.schema import  User as SchemaUser
 from db.schema import  Portfolio as SchemaPortfolio
 from db.schema import  PortfolioEvaluation as SchemaPortfolioEvaluation
+from db.models import  LocalMarketData  
 from db.models import User as ModelUser
-from db.models import Portfolio as ModelPortfolio
+from db.models import Portfolio as ModelPortfolio, LocalMarketData
 from db.models import PortfolioEvaluation as ModelPortfolioEvaluation
+#from schemas.portfolio import LocalMarketData
+
 import base64
 import requests
 
@@ -57,6 +62,51 @@ def validate_user(user_id :int):
          return False
 
 
+@router.post("/seed-db-with-local-data")
+def add_local_market_data(json_data : List[Dict[str,Any]]):
+    
+        try:
+                
+            for data in json_data:    
+                local_market_data = LocalMarketData(
+                symbol=data["Symbol"],
+                csi=data["CSI"],
+                currency=data["Currency"],
+                last_price=data["Last"],
+                last_traded_time=datetime.strptime(data["LastTradeTime"], "%Y-%m-%dT%H:%M:%S.%f"),
+                ask=data["Ask"],
+                Bid=data["Bid"],
+                ask_size=data["AskSize"],
+                Bid_size=data["BidSize"],
+                prev_close=data["PrevClose"],
+                prev_close_time=datetime.strptime(data["PrevCloseDate"], "%Y-%m-%dT%H:%M:%S"),
+                change=data["Change"],
+                per_change=data["PerChange"],
+                open=data["Open"],
+                high=data["High"],
+                low=data["Low"],
+                close=data["Close"],
+                eps=data["EPS"],
+                p_e=data["PE"],
+                volume=data["Volume"],
+                yearly_high=data["High52Week"],
+                yearly_low=data["Low52Week"],
+                market_cap=data["MktCap"],
+                name=data["Name"],
+                traded_date=datetime.strptime(data["TradeDate"], "%Y-%m-%dT%H:%M:%S"),
+                asset_class=data["Asset"]
+                )
+                db.session.add(local_market_data)
+                db.session.commit()
+                
+            return f"successful insertion"
+        except Exception as e:
+            db.session.rollback()
+            return f"Something went wrong while inserting data into the db Exception: {e}", "exception_error "
+        
+        finally:
+            db.session.close()
+
 
 #@router.post('/add_portfolio/')
 def add_portfolio(
@@ -92,7 +142,7 @@ def add_portfolio(
         raise e
     finally:
         db.session.close()
-    return {"message":"successfully added portfolio"}
+    return {"message":"db operation ended"}
 
 
 @router.get('/User/{user_id}' )
@@ -265,7 +315,7 @@ async def generate_portfolio_api(user_id: int, portfolios: Dict[str, PortfolioDa
         for ticker, portfolio in portfolios.items():
             purchased_price = portfolio.purchase_price
             quoted_price = quote.iloc[1, 0] 
-            percentage_difference = (((quoted_price-purchased_price)/purchased_price) * 100)
+            percentage_difference = (((quoted_price-purchased_price)/purchased_price) * 100)\
             
             ticker_gain_loss_percentages[ticker] = percentage_difference
 
@@ -331,6 +381,7 @@ def get_latest_portfolio(user_id: int):
                     ticker_purchase_prices[portfolio.ticker] = portfolio.purchase_price
 
             # Filter valid tickers
+                    
             valid_tickers = [ticker for ticker in ticker_purchase_prices if isinstance(ticker, str) and ticker.lower() != 'nan']
 
             # Log in and fetch quotes for valid tickers
@@ -379,7 +430,9 @@ def get_local_market_data(symbols: List):
                }
     headers = {}
     response = requests.get(url, headers=headers, params= payload)
-    return json.loads(response.text)
+    json_data = json.loads(response.text)
+    save_data = add_local_market_data(json_data=json_data)
+    return json_data
 
 @router.post("/get-last-price/")
 def compute_local_data(symbols: List):
@@ -391,5 +444,38 @@ def compute_local_data(symbols: List):
         return last_prices
     except Exception as e:
         return f"Something went wrong : {e}"
+
+
+@router.post("/get-local-data/")
+def get_local_data(symbols : List[str]):
+    
+    try:
+        query_results = {}
+        for symbol in symbols:
+            query_result = db.session.query(LocalMarketData).filter_by(symbol=symbol).first()
+            print(query_result)
+            
+            # Extract all fields dynamically and store in the dictionary
+            if query_result:
+                query_results[symbol] = {key: getattr(query_result, key) for key in query_result.__dict__.keys() if not key.startswith('_')}
+            else:
+                # Handle the case when no result is found for the given symbol
+                query_results[symbol] = None
+
+        return query_results
+            
+            
+
+    except Exception as e:
+        return f"Something went wrong :{e}"
+    finally:
+        db.session.close()
+
+        
+
+
+
+
+
 
 
